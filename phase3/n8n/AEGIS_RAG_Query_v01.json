@@ -1,0 +1,426 @@
+{
+  "name": "AEGIS | Grounded Regulatory RAG Query v0.1 | Protected Test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegis-rag-query-v01",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "q-webhook",
+      "name": "Protected RAG Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:{};\nconst question=typeof body.question==='string'?body.question.trim():'';\nconst requestId='aegis-rag-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nif(!question||question.length>2000){\n  return [{json:{valid:false,http_status:400,response:{error:'question must be a non-empty string of at most 2000 characters',request_id:requestId}}}];\n}\nreturn [{json:{valid:true,question,request_id:requestId}}];"
+      },
+      "id": "q-validate",
+      "name": "Validate RAG Question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "q-valid-cond",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "q-if-valid",
+      "name": "Valid RAG Question?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "q-bad",
+      "name": "Return RAG Bad Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -290,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'text-embedding-3-small',input:$json.question}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "q-embed",
+      "name": "Embed Question",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -290,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/match_regulatory_chunks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({query_embedding:$json.data[0].embedding,match_count:6,min_similarity:0.55,filter_document_ids:null}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "q-search",
+      "name": "Retrieve Regulatory Evidence",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -40,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows=$input.first().json;\nconst query=$('Validate RAG Question').first().json;\nconst sources=Array.isArray(rows)?rows:[];\nif(!sources.length){\n  return [{json:{has_sources:false,http_status:200,response:{answer:'I could not find sufficiently relevant evidence in the approved Aegis regulatory knowledge base for this question. Review the authoritative source documents or broaden the indexed library before making a compliance decision.',mode:'grounded_rag',sources:[],regulatory_sources_verified:false,human_review_required:true,request_id:query.request_id}}}];\n}\nconst cited=sources.map((s,i)=>({\n  citation_id:'S'+(i+1),\n  document_title:s.document_title,\n  source_org:s.source_org,\n  source_url:s.source_url,\n  version_label:s.version_label,\n  effective_date:s.effective_date,\n  page_number:s.page_number,\n  section_title:s.section_title,\n  similarity:Number(s.similarity||0),\n  content:s.content\n}));\nconst context=cited.map(s=>`[${s.citation_id}] ${s.document_title}${s.version_label?' | Version '+s.version_label:''}${s.page_number?' | Page '+s.page_number:''}${s.section_title?' | '+s.section_title:''}\\n${s.content}`).join('\\n\\n---\\n\\n');\nconst payload={\n  model:'gpt-4.1-mini',\n  temperature:0.1,\n  max_tokens:800,\n  messages:[\n    {role:'system',content:'You are Aegis Regulatory Intelligence. Answer ONLY from the supplied retrieved evidence. Every material regulatory statement must cite one or more source IDs exactly like [S1]. Do not invent regulations, clauses, deadlines, policy names or facts. If the evidence is incomplete or conflicting, say so explicitly. Distinguish evidence from interpretation. Never make an autonomous compliance approval, closure or regulatory submission. End with a short Human review section identifying what an authorised Compliance Officer should verify.'},\n    {role:'user',content:'Question: '+query.question+'\\n\\nRetrieved evidence:\\n'+context}\n  ]\n};\nreturn [{json:{has_sources:true,question:query.question,request_id:query.request_id,sources:cited.map(({content,...rest})=>rest),payload}}];"
+      },
+      "id": "q-build",
+      "name": "Build Grounded Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "q-has-cond",
+              "leftValue": "={{ $json.has_sources }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "q-if-sources",
+      "name": "Evidence Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        430,
+        -70
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "q-llm",
+      "name": "Generate Grounded Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        670,
+        -160
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const api=$input.first().json;\nconst request=$('Build Grounded Prompt').first().json;\nconst answer=api?.choices?.[0]?.message?.content;\nif(typeof answer!=='string'||!answer.trim()){\n  return [{json:{http_status:502,response:{error:'The LLM returned no usable grounded answer',request_id:request.request_id}}}];\n}\nreturn [{json:{http_status:200,response:{answer:answer.trim(),mode:'grounded_rag',sources:request.sources,regulatory_sources_verified:true,human_review_required:true,request_id:request.request_id,model:api.model||'provider_model'}}}];"
+      },
+      "id": "q-format",
+      "name": "Format Grounded Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        910,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "q-return",
+      "name": "Return Grounded Answer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1150,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "q-no-source",
+      "name": "Return No Evidence",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        80
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Protected RAG Query Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate RAG Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate RAG Question": {
+      "main": [
+        [
+          {
+            "node": "Valid RAG Question?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid RAG Question?": {
+      "main": [
+        [
+          {
+            "node": "Embed Question",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return RAG Bad Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Question": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Regulatory Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Regulatory Evidence": {
+      "main": [
+        [
+          {
+            "node": "Build Grounded Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Grounded Prompt": {
+      "main": [
+        [
+          {
+            "node": "Evidence Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evidence Found?": {
+      "main": [
+        [
+          {
+            "node": "Generate Grounded Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return No Evidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Grounded Answer": {
+      "main": [
+        [
+          {
+            "node": "Format Grounded Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Grounded Response": {
+      "main": [
+        [
+          {
+            "node": "Return Grounded Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
