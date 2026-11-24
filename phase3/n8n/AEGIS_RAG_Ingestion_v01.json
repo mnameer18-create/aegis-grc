@@ -1,0 +1,382 @@
+{
+  "name": "AEGIS | RAG Document Ingestion v0.1 | Protected Test",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegis-rag-ingest-v01",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ing-webhook",
+      "name": "Protected RAG Ingest Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -920,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:{};\nconst title=typeof body.title==='string'?body.title.trim():'';\nconst content=typeof body.content==='string'?body.content.trim():'';\nconst sourceOrg=typeof body.source_org==='string'?body.source_org.trim():'Bank Negara Malaysia';\nconst sourceType=typeof body.source_type==='string'?body.source_type.trim():'regulatory_document';\nconst sourceUrl=typeof body.source_url==='string'?body.source_url.trim():null;\nconst versionLabel=typeof body.version_label==='string'?body.version_label.trim():null;\nconst effectiveDate=typeof body.effective_date==='string'&&body.effective_date?body.effective_date:null;\nconst requestId='aegis-ingest-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nif(!title||content.length<100||content.length>500000){\n  return [{json:{valid:false,http_status:400,response:{error:'title is required and content must be between 100 and 500000 characters',request_id:requestId}}}];\n}\nreturn [{json:{valid:true,request_id:requestId,title,content,source_org:sourceOrg,source_type:sourceType,source_url:sourceUrl,version_label:versionLabel,effective_date:effectiveDate}}];"
+      },
+      "id": "ing-validate",
+      "name": "Validate Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -700,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ing-valid-cond",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "ing-if",
+      "name": "Valid Document?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -470,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ing-bad",
+      "name": "Return Bad Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -240,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/regulatory_documents",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title:$json.title, source_org:$json.source_org, source_type:$json.source_type, source_url:$json.source_url, version_label:$json.version_label, effective_date:$json.effective_date, metadata:{ingest_request_id:$json.request_id} }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ing-create-doc",
+      "name": "Create Document Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -230,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const created=$input.first().json;\nconst original=$('Validate Document').first().json;\nconst row=Array.isArray(created)?created[0]:created;\nif(!row?.id) throw new Error('Supabase did not return a document id. Check the Supabase credential and Prefer header.');\nconst text=original.content.replace(/\\r\\n/g,'\\n').replace(/\\n{3,}/g,'\\n\\n');\nconst max=3500, overlap=500;\nconst chunks=[];\nlet start=0,index=0;\nwhile(start<text.length){\n  let end=Math.min(start+max,text.length);\n  if(end<text.length){\n    const para=text.lastIndexOf('\\n\\n',end);\n    const sentence=text.lastIndexOf('. ',end);\n    const cut=Math.max(para,sentence);\n    if(cut>start+1800) end=cut+(cut===sentence?1:0);\n  }\n  const chunk=text.slice(start,end).trim();\n  if(chunk) chunks.push({json:{document_id:row.id,document_title:original.title,chunk_index:index++,content:chunk,token_estimate:Math.ceil(chunk.length/4)}});\n  if(end>=text.length) break;\n  start=Math.max(end-overlap,start+1);\n}\nreturn chunks;"
+      },
+      "id": "ing-chunk",
+      "name": "Chunk Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'text-embedding-3-small',input:$json.content}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ing-embed",
+      "name": "Create Chunk Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const api=$json;\nconst source=$('Chunk Document').item.json;\nconst embedding=api?.data?.[0]?.embedding;\nif(!Array.isArray(embedding)||!embedding.length) throw new Error('Embedding provider returned no vector');\nreturn {json:{document_id:source.document_id,chunk_index:source.chunk_index,content:source.content,token_estimate:source.token_estimate,embedding}};"
+      },
+      "id": "ing-row",
+      "name": "Prepare Chunk Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/regulatory_chunks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({document_id:$json.document_id,chunk_index:$json.chunk_index,content:$json.content,token_estimate:$json.token_estimate,embedding:$json.embedding}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ing-insert",
+      "name": "Store Chunk in Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const original=$('Validate Document').first().json;\nconst created=$('Create Document Record').first().json;\nconst row=Array.isArray(created)?created[0]:created;\nreturn [{json:{http_status:200,response:{ok:true,document_id:row.id,title:original.title,chunks_stored:$input.all().length,embedding_model:'text-embedding-3-small',request_id:original.request_id}}}];"
+      },
+      "id": "ing-result",
+      "name": "Format Ingestion Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ing-return",
+      "name": "Return Ingestion Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1190,
+        -60
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Protected RAG Ingest Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Document": {
+      "main": [
+        [
+          {
+            "node": "Valid Document?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Document?": {
+      "main": [
+        [
+          {
+            "node": "Create Document Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Bad Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Document Record": {
+      "main": [
+        [
+          {
+            "node": "Chunk Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Document": {
+      "main": [
+        [
+          {
+            "node": "Create Chunk Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Chunk Embedding": {
+      "main": [
+        [
+          {
+            "node": "Prepare Chunk Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Chunk Row": {
+      "main": [
+        [
+          {
+            "node": "Store Chunk in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Chunk in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Format Ingestion Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Ingestion Result": {
+      "main": [
+        [
+          {
+            "node": "Return Ingestion Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
