@@ -63,8 +63,10 @@ begin
   limit 1;
 
   if v_existing_id is not null then
-    select count(*)::integer
-      into v_clause_count
+    select
+      count(*)::integer,
+      count(*) filter (where review_status = 'review_required')::integer
+      into v_clause_count, v_review_count
     from public.regulatory_clauses
     where document_id = v_existing_id;
 
@@ -73,7 +75,7 @@ begin
       'duplicate', true,
       'document_id', v_existing_id,
       'clauses_stored', v_clause_count,
-      'review_required', 0
+      'review_required', v_review_count
     );
   end if;
 
