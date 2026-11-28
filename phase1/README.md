@@ -3,7 +3,7 @@
 **Brand:** Noventra — Powered by AI
 **Working branch:** `noventra-phase1-foundation`
 **Preserved baseline:** `phase3-rag-mvp`
-**Status:** In progress
+**Status:** Phase 1 foundation complete; automatic PDF and AI extraction continue under Master Tracker Phase 3
 
 ## Master build tracker
 
@@ -18,7 +18,7 @@
 - [x] Change user-facing product name to **Noventra**.
 - [x] Apply the tagline **Powered by AI**.
 - [x] Update the frontend title, navigation, descriptions, and assistant labels.
-- [ ] Rename new workflow and credential display names without breaking existing credentials.
+- [x] Rename new workflow and credential display names without breaking existing credentials.
 - [x] Verify no secret, endpoint, or workflow reference is accidentally changed.
 
 ### 3. Establish the Supabase foundation
@@ -41,7 +41,7 @@
 
 - [ ] Accept BNM policy documents and approved extracted text.
 - [x] Preserve document title, version, source URL, file name, checksum, page, and section in the controlled clause-ingestion contract.
-- [ ] Extract each clause as a separate requirement.
+- [x] Extract each clause as a separate requirement from approved extracted text.
 - [x] Classify stored clauses as **S — Standard**, **G — Guidance**, or unclassified.
 - [x] Store extraction confidence and route uncertain clauses to human review.
 - [x] Prevent duplicate ingestion using checksum and document-version controls.
@@ -49,10 +49,10 @@
 
 ### 5. Build the Regulatory Requirements Library
 
-- [ ] Browse by regulatory document.
-- [ ] Search by clause number or requirement text.
-- [ ] Filter by S/G classification.
-- [ ] Filter by applicability and review status.
+- [x] Browse by regulatory document.
+- [x] Search by clause number or requirement text.
+- [x] Filter by S/G classification.
+- [x] Filter by applicability and review status.
 - [x] Verify backend clause traceability for page, section, source, version, classification, confidence, and review status.
 - [x] Restrict the new view and ingestion function to the server-side service role until RBAC policies are implemented.
 
