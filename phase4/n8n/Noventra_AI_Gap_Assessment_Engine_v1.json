@@ -21,7 +21,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:src;\nconst requestId='noventra-gap-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nconst code=typeof body.regulatory_document_code==='string'?body.regulatory_document_code.trim():'';\nconst title=typeof body.assessment_title==='string'?body.assessment_title.trim():'';\nconst selectedId=typeof body.internal_document_id==='string'?body.internal_document_id.trim():'';\nconst doc=body.internal_document&&typeof body.internal_document==='object'?body.internal_document:null;\nconst hasNew=!!(doc&&typeof doc.title==='string'&&doc.title.trim()&&(typeof doc.content==='string'||Array.isArray(doc.sections)));\nif(!code||!title||(!selectedId&&!hasNew)){\n return [{json:{valid:false,http_status:400,response:{ok:false,error:'assessment_title, regulatory_document_code, and either internal_document_id or internal_document are required',request_id:requestId}}}];\n}\nreturn [{json:{valid:true,request_id:requestId,assessment_title:title,regulatory_document_code:code,business_unit:body.business_unit||null,scope:body.scope||null,internal_document_id:selectedId||null,internal_document:doc}}];"
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:src;\nconst requestId='noventra-gap-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nconst code=typeof body.regulatory_document_code==='string'?body.regulatory_document_code.trim():'';\nconst title=typeof body.assessment_title==='string'?body.assessment_title.trim():'';\nconst selectedId=typeof body.internal_document_id==='string'?body.internal_document_id.trim():'';\nconst doc=body.internal_document&&typeof body.internal_document==='object'?body.internal_document:null;\nconst hasNew=!!(doc&&typeof doc.title==='string'&&doc.title.trim()&&(typeof doc.content==='string'||Array.isArray(doc.sections)));\nif(!code||!title||(!selectedId&&!hasNew)){\n return [{json:{valid:false,http_status:400,response:{ok:false,error:'assessment_title, regulatory_document_code, and either internal_document_id or internal_document are required',request_id:requestId}}}];\n}\nconst internalPayload=selectedId?{internal_document_id:selectedId,request_id:requestId}:{...doc,request_id:requestId};\nreturn [{json:{valid:true,request_id:requestId,assessment_title:title,regulatory_document_code:code,business_unit:body.business_unit||null,scope:body.scope||null,internal_document_id:selectedId||null,internal_document:doc,internal_payload:internalPayload}}];"
       },
       "id": "gap-validate",
       "name": "Validate Gap Assessment Request",
@@ -107,7 +107,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({p_payload:$json.internal_document_id?{internal_document_id:$json.internal_document_id,request_id:$json.request_id}:{...$json.internal_document,request_id:$json.request_id}}) }}",
+        "jsonBody": "{{ JSON.stringify({p_payload:$('Validate Gap Assessment Request').first().json.internal_payload}) }}",
         "options": {
           "timeout": 120000
         }
