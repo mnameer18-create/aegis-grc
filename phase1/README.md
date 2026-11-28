@@ -15,11 +15,11 @@
 
 ### 2. Rebrand AEGIS to Noventra
 
-- [ ] Change user-facing product name to **Noventra**.
-- [ ] Apply the tagline **Powered by AI**.
-- [ ] Update the frontend title, navigation, descriptions, and assistant labels.
+- [x] Change user-facing product name to **Noventra**.
+- [x] Apply the tagline **Powered by AI**.
+- [x] Update the frontend title, navigation, descriptions, and assistant labels.
 - [ ] Rename new workflow and credential display names without breaking existing credentials.
-- [ ] Verify no secret, endpoint, or workflow reference is accidentally changed.
+- [x] Verify no secret, endpoint, or workflow reference is accidentally changed.
 
 ### 3. Establish the Supabase foundation
 
