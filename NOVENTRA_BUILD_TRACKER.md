@@ -10,7 +10,7 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Create dedicated Noventra development branch
 - [x] Confirm Noventra branch is additive and ahead of preserved Phase 3 baseline
 
-## Phase 2 — Core Data Model & Compliance Architecture 🟡
+## Phase 2 — Core Data Model & Compliance Architecture ✅
 - [x] Regulatory documents and versions
 - [x] Regulatory clauses / requirements
 - [x] S / G classification
@@ -28,7 +28,7 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Business Unit master and relational references (migration prepared)
 - [x] Configurable workflow approval-step definitions (migration prepared)
 - [x] Reminder / escalation rule definitions (migration prepared)
-- [ ] Apply and verify Phase 2 completion migration in Supabase
+- [x] Apply and verify Phase 2 completion migration in Supabase
 
 ## Phase 3 — Regulatory Document Ingestion & Requirements Library 🟡
 - [x] Controlled clause-ingestion RPC
@@ -39,11 +39,12 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Regulatory Requirements Library backend view
 - [ ] Automatic BNM document/PDF ingestion
 - [ ] AI clause extraction from source document
-- [ ] Requirements Library frontend
+- [x] Protected extracted-text clause ingestion workflow tested and published
+- [x] Requirements Library frontend
 - [x] Requirements Library server-side search/filter API prepared
-- [ ] Search by document / clause / requirement
-- [ ] Filters for S/G, applicability and review status
-- [ ] Compliance applicability confirmation UI
+- [x] Search by document / clause / requirement
+- [x] Filters for S/G, applicability and review status
+- [x] Compliance applicability confirmation UI
 
 ## Phase 4 — AI Gap Assessment Engine ⬜
 - [ ] Upload/select internal Policy, SOP/OSOPM and Process documents
@@ -119,4 +120,4 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Performance/scaling review
 
 ## Current build position
-Phase 1 is complete. Phase 2 code is structurally complete and awaiting live Supabase apply/verification. Phase 3 has started: the Requirements Library query API is prepared; next is the live apply plus frontend integration.
+Phase 1 is complete. Phase 2 is applied and verified in Supabase. Phase 3 now has the protected extracted-text ingestion workflow, live query API, Requirements Library frontend, search, filters and applicability confirmation UI. Remaining Phase 3 work: automatic BNM PDF ingestion and AI clause extraction.
