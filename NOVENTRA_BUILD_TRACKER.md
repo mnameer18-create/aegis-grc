@@ -38,7 +38,8 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Extraction confidence + human review routing
 - [x] Regulatory Requirements Library backend view
 - [ ] Automatic BNM document/PDF ingestion
-- [ ] AI clause extraction from source document
+- [x] AI clause extraction from source document
+- [x] Controlled AI extraction test stored S/G clauses with page, section, confidence and review status
 - [x] Protected extracted-text clause ingestion workflow tested and published
 - [x] Requirements Library frontend
 - [x] Requirements Library server-side search/filter API prepared
@@ -120,4 +121,4 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Performance/scaling review
 
 ## Current build position
-Phase 1 is complete. Phase 2 is applied and verified in Supabase. Phase 3 now has the protected extracted-text ingestion workflow, live query API, Requirements Library frontend, search, filters and applicability confirmation UI. Remaining Phase 3 work: automatic BNM PDF ingestion and AI clause extraction.
+Phase 1 is complete. Phase 2 is applied and verified in Supabase. Phase 3 now has the protected AI clause-extraction workflow, live query API, Requirements Library frontend, search, filters and applicability confirmation UI. A controlled OpenAI test stored both Standard and Guidance clauses with page, section, confidence and review traceability. Remaining Phase 3 work: automatic BNM document/PDF ingestion.
