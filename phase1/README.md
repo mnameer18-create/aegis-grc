@@ -3,7 +3,7 @@
 **Brand:** Noventra — Powered by AI
 **Working branch:** `noventra-phase1-foundation`
 **Preserved baseline:** `phase3-rag-mvp`
-**Status:** Phase 1 foundation complete; automatic PDF and AI extraction continue under Master Tracker Phase 3
+**Status:** Phase 1 foundation complete; AI clause extraction verified; automatic BNM document/PDF ingestion continues under Master Tracker Phase 3
 
 ## Master build tracker
 
@@ -81,7 +81,7 @@ The migrations are additive and intentionally do not modify the live Phase 2/3 n
 
 ## Latest controlled verification
 
-- Synthetic clause ingestion stored 2 clauses with S/G classification and page traceability.
-- One lower-confidence clause was routed to human review.
-- The duplicate checksum probe returned the original document with 2 stored clauses and 1 review-required clause.
+- Controlled OpenAI clause extraction stored 2 clauses with S/G classification, pages 7–8, section traceability and confidence 1.0000.
+- Both synthetic clauses were stored with **ai_extracted** review status; the protected ingestion receipt reported 2 clauses with no review-required items.
+- The deterministic fallback and duplicate-checksum controls remain available for failed extraction and repeated submissions.
 - The Requirements Library view returned both clauses with their source metadata.
