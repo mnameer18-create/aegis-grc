@@ -30,14 +30,15 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Reminder / escalation rule definitions (migration prepared)
 - [x] Apply and verify Phase 2 completion migration in Supabase
 
-## Phase 3 — Regulatory Document Ingestion & Requirements Library 🟡
+## Phase 3 — Regulatory Document Ingestion & Requirements Library ✅
 - [x] Controlled clause-ingestion RPC
 - [x] Version/checksum duplicate protection
 - [x] Page/section/source traceability contract
 - [x] S / G / unclassified storage
 - [x] Extraction confidence + human review routing
 - [x] Regulatory Requirements Library backend view
-- [ ] Automatic BNM document/PDF ingestion
+- [x] Automatic BNM document/PDF ingestion
+- [x] Official BNM PDF controlled test downloaded and parsed 20 pages, stored 8 clauses, preserved pages 3–17 and routed 8 items to human review
 - [x] AI clause extraction from source document
 - [x] Controlled AI extraction test stored S/G clauses with page, section, confidence and review status
 - [x] Protected extracted-text clause ingestion workflow tested and published
@@ -121,4 +122,4 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Performance/scaling review
 
 ## Current build position
-Phase 1 is complete. Phase 2 is applied and verified in Supabase. Phase 3 now has the protected AI clause-extraction workflow, live query API, Requirements Library frontend, search, filters and applicability confirmation UI. A controlled OpenAI test stored both Standard and Guidance clauses with page, section, confidence and review traceability. Remaining Phase 3 work: automatic BNM document/PDF ingestion.
+Phase 1 and Phase 2 are complete. Phase 3 is complete: Noventra now has protected extracted-text and automatic BNM PDF ingestion, page-preserving PDF extraction, AI clause analysis, source/version traceability, checksum duplicate protection, Requirements Library search and filters, applicability confirmation, and human-review routing. The official BNM Guidance on Beneficial Ownership test processed 20 pages and stored 8 clauses with page references. Next build stage: Phase 4 — AI Gap Assessment Engine.
