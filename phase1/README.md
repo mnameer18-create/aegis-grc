@@ -1,8 +1,8 @@
 # Noventra Phase 1 — Foundation
 
-**Brand:** Noventra — Powered by AI  
-**Working branch:** `noventra-phase1-foundation`  
-**Preserved baseline:** `phase3-rag-mvp`  
+**Brand:** Noventra — Powered by AI
+**Working branch:** `noventra-phase1-foundation`
+**Preserved baseline:** `phase3-rag-mvp`
 **Status:** In progress
 
 ## Master build tracker
@@ -40,12 +40,12 @@
 ### 4. Upgrade regulatory ingestion
 
 - [ ] Accept BNM policy documents and approved extracted text.
-- [ ] Preserve document title, version, source URL, file name, checksum, page, and section.
+- [x] Preserve document title, version, source URL, file name, checksum, page, and section in the controlled clause-ingestion contract.
 - [ ] Extract each clause as a separate requirement.
-- [ ] classify each extracted clause as **S — Standard**, **G — Guidance**, or unclassified.
-- [ ] Store extraction confidence and route uncertain clauses to human review.
-- [ ] Prevent duplicate ingestion using checksum and document-version controls.
-- [ ] Return a controlled ingestion receipt with document, version, clause count, and review count.
+- [x] Classify stored clauses as **S — Standard**, **G — Guidance**, or unclassified.
+- [x] Store extraction confidence and route uncertain clauses to human review.
+- [x] Prevent duplicate ingestion using checksum and document-version controls.
+- [x] Return a controlled ingestion receipt with document, version, clause count, and review count.
 
 ### 5. Build the Regulatory Requirements Library
 
@@ -53,8 +53,8 @@
 - [ ] Search by clause number or requirement text.
 - [ ] Filter by S/G classification.
 - [ ] Filter by applicability and review status.
-- [ ] Open the exact clause with page, section, source, and version traceability.
-- [ ] Restrict access through the server-side workflow until RBAC policies are implemented.
+- [x] Verify backend clause traceability for page, section, source, version, classification, confidence, and review status.
+- [x] Restrict the new view and ingestion function to the server-side service role until RBAC policies are implemented.
 
 ## Phase 1 acceptance criteria
 
@@ -68,12 +68,20 @@ Phase 1 is complete only when:
 - a controlled test BNM document can be ingested without exposing secrets;
 - the result is verified in Supabase and the tracker is updated.
 
-## Implemented migration
+## Implemented migrations
 
 Run after `phase3/sql/001_rag_schema.sql`:
 
 ```
 phase1/sql/002_noventra_foundation_schema.sql
+phase1/sql/003_regulatory_ingestion_rpc.sql
 ```
 
-The migration is additive and intentionally does not modify the live Phase 2/3 n8n workflows.
+The migrations are additive and intentionally do not modify the live Phase 2/3 n8n workflows.
+
+## Latest controlled verification
+
+- Synthetic clause ingestion stored 2 clauses with S/G classification and page traceability.
+- One lower-confidence clause was routed to human review.
+- The duplicate checksum probe returned the original document with 2 stored clauses and 1 review-required clause.
+- The Requirements Library view returned both clauses with their source metadata.
