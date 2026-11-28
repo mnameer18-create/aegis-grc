@@ -40,6 +40,7 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Automatic BNM document/PDF ingestion
 - [ ] AI clause extraction from source document
 - [ ] Requirements Library frontend
+- [x] Requirements Library server-side search/filter API prepared
 - [ ] Search by document / clause / requirement
 - [ ] Filters for S/G, applicability and review status
 - [ ] Compliance applicability confirmation UI
@@ -118,4 +119,4 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Performance/scaling review
 
 ## Current build position
-Phase 1 is complete. Phase 2 is being closed. Phase 3 backend foundations already exist and will be the next functional build target after Phase 2 verification.
+Phase 1 is complete. Phase 2 code is structurally complete and awaiting live Supabase apply/verification. Phase 3 has started: the Requirements Library query API is prepared; next is the live apply plus frontend integration.
