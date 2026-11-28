@@ -3,7 +3,7 @@
 **Brand:** Noventra — Powered by AI
 **Working branch:** `noventra-phase1-foundation`
 **Preserved baseline:** `phase3-rag-mvp`
-**Status:** Phase 1 foundation complete; AI clause extraction verified; automatic BNM document/PDF ingestion continues under Master Tracker Phase 3
+**Status:** Phase 1 foundation complete; Master Tracker Phase 3 automatic BNM document/PDF ingestion verified and complete
 
 ## Master build tracker
 
@@ -39,7 +39,7 @@
 
 ### 4. Upgrade regulatory ingestion
 
-- [ ] Accept BNM policy documents and approved extracted text.
+- [x] Accept BNM policy documents and approved extracted text.
 - [x] Preserve document title, version, source URL, file name, checksum, page, and section in the controlled clause-ingestion contract.
 - [x] Extract each clause as a separate requirement from approved extracted text.
 - [x] Classify stored clauses as **S — Standard**, **G — Guidance**, or unclassified.
@@ -77,11 +77,20 @@ phase1/sql/002_noventra_foundation_schema.sql
 phase1/sql/003_regulatory_ingestion_rpc.sql
 ```
 
-The migrations are additive and intentionally do not modify the live Phase 2/3 n8n workflows.
+The migrations are additive and intentionally do not modify the preserved Phase 2/3 baseline workflows.
+
+## Implemented workflow
+
+`phase1/n8n/Noventra_Automatic_BNM_PDF_Ingestion_v1.json`
+
+The protected workflow accepts approved HTTPS PDF URLs hosted on `bnm.gov.my`, downloads and parses every page, adds page markers, extracts clauses with AI, applies S/G/unclassified review routing, and stores the controlled result through the Supabase ingestion RPC.
 
 ## Latest controlled verification
 
-- Controlled OpenAI clause extraction stored 2 clauses with S/G classification, pages 7–8, section traceability and confidence 1.0000.
+- The official BNM *Guidance on Beneficial Ownership* PDF was downloaded from its original BNM URL and all 20 pages were parsed automatically.
+- The workflow stored 8 clauses with page references spanning pages 3–17; all 8 uncertain classifications were correctly routed to human review.
+- The source URL, file name, version label, document code and ingestion status were verified in Supabase.
+- Controlled OpenAI clause extraction also stored 2 clauses with S/G classification, pages 7–8, section traceability and confidence 1.0000.
 - Both synthetic clauses were stored with **ai_extracted** review status; the protected ingestion receipt reported 2 clauses with no review-required items.
 - The deterministic fallback and duplicate-checksum controls remain available for failed extraction and repeated submissions.
 - The Requirements Library view returned both clauses with their source metadata.
