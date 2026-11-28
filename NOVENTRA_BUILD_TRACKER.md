@@ -25,9 +25,9 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Dashboard preferences
 - [x] Audit events
 - [x] RLS enabled on new business tables
-- [ ] Business Unit master and relational references
-- [ ] Configurable workflow approval-step definitions
-- [ ] Reminder / escalation rule definitions
+- [x] Business Unit master and relational references (migration prepared)
+- [x] Configurable workflow approval-step definitions (migration prepared)
+- [x] Reminder / escalation rule definitions (migration prepared)
 - [ ] Apply and verify Phase 2 completion migration in Supabase
 
 ## Phase 3 — Regulatory Document Ingestion & Requirements Library 🟡
