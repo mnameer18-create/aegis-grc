@@ -1,0 +1,413 @@
+{
+  "name": "Noventra | Automatic BNM PDF Ingestion v1.0 | Phase 3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "noventra-bnm-pdf-ingest-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "pdf-webhook",
+      "name": "Protected BNM PDF Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1160,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:src;\nconst rawUrl=typeof body.document_url==='string'?body.document_url.trim():'';\nconst requestId='noventra-pdf-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nlet url=null;\ntry{url=new URL(rawUrl)}catch(e){}\nconst host=url?url.hostname.toLowerCase():'';\nconst isBnm=url&&url.protocol==='https:'&&(host==='bnm.gov.my'||host.endsWith('.bnm.gov.my'))&&url.pathname.toLowerCase().endsWith('.pdf');\nconst fileName=url?decodeURIComponent(url.pathname.split('/').pop()||'bnm-policy.pdf'):'bnm-policy.pdf';\nconst title=typeof body.title==='string'&&body.title.trim()?body.title.trim():fileName.replace(/\\.pdf$/i,'').replace(/[-_]+/g,' ');\nif(!isBnm||!title){\n  return [{json:{valid:false,http_status:400,response:{ok:false,error:'A valid HTTPS PDF URL hosted on bnm.gov.my is required',request_id:requestId}}}];\n}\nreturn [{json:{valid:true,request_id:requestId,document_url:rawUrl,title,document_code:body.document_code||null,version_label:body.version_label||'Current version',effective_date:body.effective_date||null,publication_date:body.publication_date||null,source_org:'Bank Negara Malaysia',document_type:'policy_document',jurisdiction:'Malaysia',file_name:fileName}}];"
+      },
+      "id": "pdf-validate",
+      "name": "Validate BNM PDF Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "pdf-valid-cond",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "pdf-if",
+      "name": "Valid BNM PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "pdf-bad",
+      "name": "Return Invalid PDF Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -500,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.document_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "pdf-download",
+      "name": "Download BNM PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -500,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": false,
+          "keepSource": "json"
+        }
+      },
+      "id": "pdf-extract",
+      "name": "Extract PDF Pages",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -270,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const extracted=$input.first().json;\nconst request=$('Validate BNM PDF Request').first().json;\nconst pages=Array.isArray(extracted.text)?extracted.text:[String(extracted.text||'')];\nconst cleaned=pages.map((p,i)=>('[PDF page '+(i+1)+']\\n'+String(p||'').replace(/\\r/g,'').trim())).filter(p=>p.trim());\nconst documentText=cleaned.join('\\n\\n');\nif(documentText.length<100) throw new Error('PDF extraction returned insufficient text');\nif(documentText.length>450000) throw new Error('PDF text exceeds the controlled Phase 3 limit of 450000 characters');\nlet hash=2166136261;\nfor(let i=0;i<documentText.length;i++){hash^=documentText.charCodeAt(i);hash=Math.imul(hash,16777619)}\nconst h=(hash>>>0).toString(16).padStart(8,'0').repeat(8);\nreturn [{json:{...request,document_text:documentText,page_count:Number(extracted.numpages||pages.length),checksum_sha256:h,parser_version:String(extracted.version||'n8n-pdf')}}];"
+      },
+      "id": "pdf-normalize",
+      "name": "Normalize PDF With Page Markers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -40,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'gpt-4o-mini',temperature:0,response_format:{type:'json_object'},messages:[{role:'system',content:'You extract regulatory clauses from Bank Negara Malaysia documents. Return one JSON object with a clauses array only. Extract every numbered regulatory clause. Each clause must contain clause_number, clause_title, section_reference, page_start, page_end, classification (S, G, or unclassified), requirement_text, guidance_text, extraction_confidence from 0 to 1, and review_status. Use the supplied [PDF page N] markers for exact page traceability. Preserve the exact regulatory meaning, never invent clauses, and set review_required whenever classification or page traceability is uncertain or confidence is below 0.85.'},{role:'user',content:'Document: '+$json.title+'\\nVersion: '+$json.version_label+'\\nSource URL: '+$json.document_url+'\\nExtract all numbered regulatory clauses from the complete PDF text below.\\n\\n'+$json.document_text}]}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "pdf-openai",
+      "name": "Extract Regulatory Clauses With AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        200,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ai=$input.first().json;\nconst source=$('Normalize PDF With Page Markers').first().json;\nlet parsed=null;\ntry{parsed=JSON.parse(ai?.choices?.[0]?.message?.content||'{}')}catch(e){parsed=null}\nlet clauses=Array.isArray(parsed?.clauses)?parsed.clauses:[];\nclauses=clauses.map((c,i)=>{\n  const classification=['S','G'].includes(String(c.classification||'').toUpperCase())?String(c.classification).toUpperCase():'unclassified';\n  const confidence=Math.max(0,Math.min(1,Number(c.extraction_confidence??c.confidence??0)));\n  const requirementText=String(c.requirement_text||c.guidance_text||'').trim();\n  const pageStart=Math.max(1,Number(c.page_start||1));\n  const pageEnd=Math.max(pageStart,Number(c.page_end||pageStart));\n  return {clause_number:String(c.clause_number||('AI-'+(i+1))),clause_title:c.clause_title||null,section_reference:c.section_reference||null,section_title:c.section_title||c.section_reference||null,page_start:pageStart,page_end:pageEnd,classification,requirement_text:requirementText,guidance_text:c.guidance_text?String(c.guidance_text):null,confidence,extraction_confidence:confidence,review_status:confidence>=0.85&&['S','G'].includes(classification)?'ai_extracted':'review_required'};\n}).filter(c=>c.requirement_text);\nif(!clauses.length){\n  let currentPage=1;\n  clauses=[];\n  for(const raw of source.document_text.split(/\\n+/)){\n    const page=raw.match(/^\\[PDF page (\\d+)\\]$/i);\n    if(page){currentPage=Number(page[1]);continue}\n    const m=raw.trim().match(/^(\\d+(?:\\.\\d+)+)\\s+(.{30,})$/);\n    if(m) clauses.push({clause_number:m[1],clause_title:null,section_reference:m[1].split('.').slice(0,-1).join('.'),section_title:null,page_start:currentPage,page_end:currentPage,classification:'unclassified',requirement_text:m[2],guidance_text:null,confidence:0.55,extraction_confidence:0.55,review_status:'review_required'});\n  }\n}\nif(!clauses.length) throw new Error('No regulatory clauses were extracted from the PDF');\nreturn [{json:{title:source.title,document_code:source.document_code,source_org:source.source_org,source_url:source.document_url,file_name:source.file_name,version_label:source.version_label,effective_date:source.effective_date,publication_date:source.publication_date,document_type:source.document_type,jurisdiction:source.jurisdiction,checksum_sha256:source.checksum_sha256,request_id:source.request_id,extraction_model:'gpt-4o-mini',clauses,metadata:{extraction_method:'automatic_bnm_pdf',parser_version:source.parser_version,page_count:source.page_count,source_host:'bnm.gov.my'}}}];"
+      },
+      "id": "pdf-parse",
+      "name": "Prepare Clause Ingestion Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/ingest_regulatory_document_v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$json}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "pdf-store",
+      "name": "Store PDF Clauses in Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stored=$input.first().json;\nconst receipt=Array.isArray(stored)?stored[0]:stored;\nconst source=$('Normalize PDF With Page Markers').first().json;\nreturn [{json:{http_status:receipt&&receipt.ok===false?422:200,response:{...receipt,source_url:source.document_url,file_name:source.file_name,page_count:source.page_count,ingestion_method:'automatic_bnm_pdf',model:'gpt-4o-mini'}}}];"
+      },
+      "id": "pdf-result",
+      "name": "Format PDF Ingestion Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "pdf-return",
+      "name": "Return PDF Ingestion Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        -40
+      ]
+    }
+  ],
+  "pinData": {
+    "Protected BNM PDF Webhook": [
+      {
+        "json": {
+          "headers": {},
+          "params": {},
+          "query": {},
+          "body": {
+            "document_url": "https://www.bnm.gov.my/documents/6312201/6321409/04.Guidance_on_BO_01092020.pdf",
+            "title": "Guidance on Beneficial Ownership",
+            "document_code": "BNM-GUIDANCE-BO-2020",
+            "version_label": "1 September 2020",
+            "publication_date": "2020-09-01"
+          },
+          "webhookUrl": "",
+          "executionMode": "manual"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Protected BNM PDF Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate BNM PDF Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate BNM PDF Request": {
+      "main": [
+        [
+          {
+            "node": "Valid BNM PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid BNM PDF?": {
+      "main": [
+        [
+          {
+            "node": "Download BNM PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Invalid PDF Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download BNM PDF": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Pages": {
+      "main": [
+        [
+          {
+            "node": "Normalize PDF With Page Markers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize PDF With Page Markers": {
+      "main": [
+        [
+          {
+            "node": "Extract Regulatory Clauses With AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Regulatory Clauses With AI": {
+      "main": [
+        [
+          {
+            "node": "Prepare Clause Ingestion Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Clause Ingestion Payload": {
+      "main": [
+        [
+          {
+            "node": "Store PDF Clauses in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store PDF Clauses in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Format PDF Ingestion Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format PDF Ingestion Result": {
+      "main": [
+        [
+          {
+            "node": "Return PDF Ingestion Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
