@@ -1,12 +1,14 @@
 -- Noventra Phase 4: AI Gap Assessment Engine
 -- Additive migration. Preserves all Phase 1-3 objects.
 
+create extension if not exists pgcrypto with schema extensions;
+
 create or replace function public.ingest_internal_document_v1(p_payload jsonb)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path = public, extensions
+as $
 declare
   v_existing_id uuid;
   v_document_id uuid;
