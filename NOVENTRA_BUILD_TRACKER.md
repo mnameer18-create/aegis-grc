@@ -48,13 +48,14 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [x] Filters for S/G, applicability and review status
 - [x] Compliance applicability confirmation UI
 
-## Phase 4 — AI Gap Assessment Engine ⬜
-- [ ] Upload/select internal Policy, SOP/OSOPM and Process documents
-- [ ] Clause-by-clause regulatory comparison
-- [ ] AI proposed outcome: Compliant / Partially Compliant / Non-Compliant / Not Applicable
-- [ ] Source evidence and rationale
-- [ ] Human reviewer confirmation
-- [ ] Assessment summary and history
+## Phase 4 — AI Gap Assessment Engine ✅
+- [x] Upload/select internal Policy, SOP/OSOPM and Process documents
+- [x] Clause-by-clause regulatory comparison
+- [x] AI proposed outcome: Compliant / Partially Compliant / Non-Compliant / Not Applicable
+- [x] Source evidence and rationale
+- [x] Human reviewer confirmation
+- [x] Assessment summary and history
+- [x] Controlled Phase 4 test compared 8 BNM clauses with 4 internal-policy sections, stored 8 findings, and verified reviewer confirmation plus pending-review history
 
 ## Phase 5 — Action, Remediation & Evidence Management ⬜
 - [ ] Convert gaps to actions
@@ -122,4 +123,4 @@ Status legend: ⬜ Not started · 🟡 In progress · ✅ Completed · 🔴 Bloc
 - [ ] Performance/scaling review
 
 ## Current build position
-Phase 1 and Phase 2 are complete. Phase 3 is complete: Noventra now has protected extracted-text and automatic BNM PDF ingestion, page-preserving PDF extraction, AI clause analysis, source/version traceability, checksum duplicate protection, Requirements Library search and filters, applicability confirmation, and human-review routing. The official BNM Guidance on Beneficial Ownership test processed 20 pages and stored 8 clauses with page references. Next build stage: Phase 4 — AI Gap Assessment Engine.
+Phase 1 through Phase 4 are complete. Phase 4 now supports new or selected internal Policy, SOP, OSOPM and Process documents; grounded clause-by-clause AI comparison; Compliant / Partially Compliant / Non-Compliant / Not Applicable proposals; source evidence and rationale; mandatory reviewer confirmation; and assessment summary/history. The controlled test stored 8 findings against 8 BNM clauses and verified the reviewer decision trail. Next build stage: Phase 5 — Action, Remediation & Evidence Management.
