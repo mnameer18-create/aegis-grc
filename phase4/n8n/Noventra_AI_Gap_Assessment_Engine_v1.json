@@ -1,0 +1,651 @@
+{
+  "name": "Noventra | AI Gap Assessment Engine v1.0 | Phase 4",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "noventra-gap-assessment-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "gap-webhook",
+      "name": "Protected Gap Assessment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1180,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:src;\nconst requestId='noventra-gap-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);\nconst code=typeof body.regulatory_document_code==='string'?body.regulatory_document_code.trim():'';\nconst title=typeof body.assessment_title==='string'?body.assessment_title.trim():'';\nconst selectedId=typeof body.internal_document_id==='string'?body.internal_document_id.trim():'';\nconst doc=body.internal_document&&typeof body.internal_document==='object'?body.internal_document:null;\nconst hasNew=!!(doc&&typeof doc.title==='string'&&doc.title.trim()&&(typeof doc.content==='string'||Array.isArray(doc.sections)));\nif(!code||!title||(!selectedId&&!hasNew)){\n return [{json:{valid:false,http_status:400,response:{ok:false,error:'assessment_title, regulatory_document_code, and either internal_document_id or internal_document are required',request_id:requestId}}}];\n}\nreturn [{json:{valid:true,request_id:requestId,assessment_title:title,regulatory_document_code:code,business_unit:body.business_unit||null,scope:body.scope||null,internal_document_id:selectedId||null,internal_document:doc}}];"
+      },
+      "id": "gap-validate",
+      "name": "Validate Gap Assessment Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "gap-valid-cond",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "gap-if",
+      "name": "Valid Assessment Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -740,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "gap-bad",
+      "name": "Return Invalid Assessment",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -500,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/ingest_internal_document_v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$json.internal_document_id?{internal_document_id:$json.internal_document_id,request_id:$json.request_id}:{...$json.internal_document,request_id:$json.request_id}}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gap-internal",
+      "name": "Register or Select Internal Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -500,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/prepare_gap_assessment_context_v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_regulatory_document_code:$('Validate Gap Assessment Request').first().json.regulatory_document_code,p_internal_document_id:$json.internal_document_id}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gap-context",
+      "name": "Load Gap Assessment Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -250,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model:'gpt-4o-mini',temperature:0,response_format:{type:'json_object'},messages:[{role:'system',content:'You are the Noventra compliance gap assessment engine. Compare every supplied BNM regulatory clause against the supplied internal policy, SOP, OSOPM or process sections. Return one JSON object with overall_outcome, summary, and findings. Produce exactly one finding for every regulatory clause. Each finding must contain regulatory_clause_id, internal_document_section_id or null, proposed_outcome (compliant, partially_compliant, non_compliant, or not_applicable), finding_summary, gap_description, existing_control, evidence_quote copied from the internal source, rationale, and confidence from 0 to 1. Never invent evidence. If evidence is missing, choose non_compliant. Use not_applicable only when the clause clearly does not apply. All outputs are AI proposals requiring human confirmation.'},{role:'user',content:'Assessment context:\\n'+JSON.stringify($json)}]}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "gap-ai",
+      "name": "AI Clause-by-Clause Comparison",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ai=$input.first().json;\nconst ctx=$('Load Gap Assessment Context').first().json;\nconst req=$('Validate Gap Assessment Request').first().json;\nlet parsed=null;\ntry{parsed=JSON.parse(ai?.choices?.[0]?.message?.content||'{}')}catch(e){parsed=null}\nconst allowed=new Set(['compliant','partially_compliant','non_compliant','not_applicable']);\nconst sectionIds=new Set((ctx.internal_sections||[]).map(s=>String(s.internal_document_section_id)));\nconst byClause=new Map((Array.isArray(parsed?.findings)?parsed.findings:[]).map(f=>[String(f.regulatory_clause_id||''),f]));\nconst findings=(ctx.clauses||[]).map(c=>{\n const f=byClause.get(String(c.regulatory_clause_id))||{};\n const raw=String(f.proposed_outcome||f.outcome||'').toLowerCase();\n const outcome=allowed.has(raw)?raw:'non_compliant';\n const sectionId=sectionIds.has(String(f.internal_document_section_id||''))?String(f.internal_document_section_id):null;\n const confidence=Math.max(0,Math.min(1,Number(f.confidence||0)));\n return {regulatory_clause_id:c.regulatory_clause_id,internal_document_section_id:sectionId,outcome,finding_summary:String(f.finding_summary||('Assessment of clause '+c.clause_number)),gap_description:String(f.gap_description||'No sufficient internal evidence was identified.'),existing_control:String(f.existing_control||''),evidence_quote:String(f.evidence_quote||''),rationale:String(f.rationale||'Human confirmation is required.'),confidence};\n});\nconst outcomes=findings.map(f=>f.outcome);\nconst overall=outcomes.includes('non_compliant')?'non_compliant':outcomes.includes('partially_compliant')?'partially_compliant':outcomes.every(x=>x==='not_applicable')?'not_applicable':'compliant';\nreturn [{json:{title:req.assessment_title,request_id:req.request_id,business_unit:req.business_unit,scope:req.scope,regulatory_document_id:ctx.regulatory_document_id,regulatory_document_version_id:ctx.regulatory_document_version_id,internal_document_id:ctx.internal_document_id,overall_outcome:overall,summary:String(parsed?.summary||'AI clause-by-clause comparison completed. Human confirmation is required.'),ai_model:'gpt-4o-mini',findings,metadata:{regulatory_document_code:req.regulatory_document_code,internal_document_title:ctx.internal_document_title,comparison_method:'grounded_clause_to_internal_section'}}}];"
+      },
+      "id": "gap-prepare",
+      "name": "Prepare Assessment Findings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        250,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/create_gap_assessment_v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_payload:$json}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "gap-store",
+      "name": "Store Gap Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const stored=$input.first().json;\nconst receipt=Array.isArray(stored)?stored[0]:stored;\nconst req=$('Validate Gap Assessment Request').first().json;\nreturn [{json:{http_status:receipt&&receipt.ok===false?422:200,response:{...receipt,title:req.assessment_title,regulatory_document_code:req.regulatory_document_code,ai_model:'gpt-4o-mini',reviewer_confirmation_required:true}}}];"
+      },
+      "id": "gap-result",
+      "name": "Format Assessment Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": "={{ $json.http_status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "gap-return",
+      "name": "Return Assessment Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "noventra-gap-review-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "review-webhook",
+      "name": "Protected Finding Review Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src=$input.first().json;\nconst body=src.body&&typeof src.body==='object'&&!Array.isArray(src.body)?src.body:src;\nconst allowed=['compliant','partially_compliant','non_compliant','not_applicable'];\nconst findingId=typeof body.finding_id==='string'?body.finding_id.trim():'';\nconst outcome=typeof body.outcome==='string'?body.outcome.toLowerCase().trim():'';\nif(!findingId||!allowed.includes(outcome)) return [{json:{valid:false,http_status:400,response:{ok:false,error:'finding_id and a valid outcome are required'}}}];\nreturn [{json:{valid:true,finding_id:findingId,outcome,comment:body.comment||null}}];"
+      },
+      "id": "review-validate",
+      "name": "Validate Reviewer Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -250,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "review-valid-cond",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "review-if",
+      "name": "Valid Reviewer Decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ekndgnhiivfoczewmgpz.supabase.co/rest/v1/rpc/review_gap_assessment_finding_v1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({p_finding_id:$json.finding_id,p_outcome:$json.outcome,p_comment:$json.comment}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "review-store",
+      "name": "Confirm Finding Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        250,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "review-return",
+      "name": "Return Review Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.response) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "review-bad",
+      "name": "Return Invalid Review",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        440
+      ]
+    }
+  ],
+  "pinData": {
+    "Protected Gap Assessment Webhook": [
+      {
+        "json": {
+          "headers": {},
+          "params": {},
+          "query": {},
+          "body": {
+            "assessment_title": "Beneficial Ownership Compliance Gap Assessment — Controlled Test",
+            "regulatory_document_code": "BNM-GUIDANCE-BO-2020",
+            "business_unit": "Compliance",
+            "scope": "Customer due diligence and beneficial ownership controls",
+            "internal_document": {
+              "title": "Customer Due Diligence and Beneficial Ownership Policy",
+              "document_code": "NOVENTRA-INTERNAL-CDD-001",
+              "document_type": "policy",
+              "owner_business_unit": "Compliance",
+              "version_label": "2026 v1",
+              "status": "active",
+              "sections": [
+                {
+                  "section_number": "1.0",
+                  "section_title": "Purpose and scope",
+                  "page_start": 1,
+                  "page_end": 1,
+                  "content": "The policy applies to customer onboarding and ongoing due diligence for legal persons and legal arrangements. Compliance owns the policy and reviews it annually.",
+                  "extraction_confidence": 1,
+                  "review_status": "confirmed"
+                },
+                {
+                  "section_number": "2.0",
+                  "section_title": "Beneficial owner identification",
+                  "page_start": 2,
+                  "page_end": 2,
+                  "content": "Before establishing a relationship, the institution shall identify the natural person who ultimately owns or controls the customer and record the ownership and control structure.",
+                  "extraction_confidence": 1,
+                  "review_status": "confirmed"
+                },
+                {
+                  "section_number": "3.0",
+                  "section_title": "Verification and enhanced measures",
+                  "page_start": 3,
+                  "page_end": 3,
+                  "content": "Beneficial owner identity shall be verified using reliable independent documents and information. Higher-risk or complex structures require enhanced due diligence and Compliance approval.",
+                  "extraction_confidence": 1,
+                  "review_status": "confirmed"
+                },
+                {
+                  "section_number": "4.0",
+                  "section_title": "Ongoing monitoring and records",
+                  "page_start": 4,
+                  "page_end": 4,
+                  "content": "Customer and beneficial ownership information shall be reviewed when material changes occur and during periodic review. Records and supporting evidence must be retained according to the retention schedule.",
+                  "extraction_confidence": 1,
+                  "review_status": "confirmed"
+                }
+              ]
+            }
+          },
+          "webhookUrl": "",
+          "executionMode": "manual"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Protected Gap Assessment Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Gap Assessment Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Gap Assessment Request": {
+      "main": [
+        [
+          {
+            "node": "Valid Assessment Request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Assessment Request?": {
+      "main": [
+        [
+          {
+            "node": "Register or Select Internal Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Invalid Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register or Select Internal Document": {
+      "main": [
+        [
+          {
+            "node": "Load Gap Assessment Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Gap Assessment Context": {
+      "main": [
+        [
+          {
+            "node": "AI Clause-by-Clause Comparison",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Clause-by-Clause Comparison": {
+      "main": [
+        [
+          {
+            "node": "Prepare Assessment Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Assessment Findings": {
+      "main": [
+        [
+          {
+            "node": "Store Gap Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Gap Assessment": {
+      "main": [
+        [
+          {
+            "node": "Format Assessment Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Assessment Result": {
+      "main": [
+        [
+          {
+            "node": "Return Assessment Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Protected Finding Review Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Reviewer Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Reviewer Decision": {
+      "main": [
+        [
+          {
+            "node": "Valid Reviewer Decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Reviewer Decision?": {
+      "main": [
+        [
+          {
+            "node": "Confirm Finding Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Invalid Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Finding Decision": {
+      "main": [
+        [
+          {
+            "node": "Return Review Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
